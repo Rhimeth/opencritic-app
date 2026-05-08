@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>GameScore AI – Analytics Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        h1 { text-align: center; color: #333; }
+        .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 20px; max-width: 1400px; margin: auto; }
+        .card { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        canvas { max-height: 300px; width: 100%; }
+        h3 { margin-top: 0; text-align: center; }
+    </style>
+</head>
+<body>
+    <h1>🎮 GameScore AI – Analytics Dashboard</h1>
+    <div class="dashboard">
+        <div class="card"><h3>Scores Over Time</h3><canvas id="yearChart"></canvas></div>
+        <div class="card"><h3>Top Genres by Average Score</h3><canvas id="genreChart"></canvas></div>
+        <div class="card"><h3>Top Developers (min 3 games)</h3><canvas id="devChart"></canvas></div>
+        <div class="card"><h3>Score Distribution</h3><canvas id="distChart"></canvas></div>
+        <div class="card"><h3>Platform Performance</h3><canvas id="platformChart"></canvas></div>
+        <div class="card"><h3>Series / Franchises</h3><canvas id="seriesChart"></canvas></div>
+    </div>
+    <script>
+        async function loadStats() {
+            const res = await fetch('/analytics/stats');
+            const data = await res.json();
+
+            // Yearly scores (line chart)
+            new Chart(document.getElementById('yearChart'), {
+                type: 'line',
+                data: { labels: Object.keys(data.yearly_scores), datasets: [{ label: 'Avg Score', data: Object.values(data.yearly_scores), borderColor: 'blue', fill: false }] }
+            });
+            // Genre scores (horizontal bar)
+            new Chart(document.getElementById('genreChart'), {
+                type: 'bar',
+                data: { labels: Object.keys(data.genre_scores), datasets: [{ label: 'Avg Score', data: Object.values(data.genre_scores), backgroundColor: 'green' }] },
+                options: { indexAxis: 'y' }
+            });
+            // Developer scores (bar)
+            new Chart(document.getElementById('devChart'), {
+                type: 'bar',
+                data: { labels: Object.keys(data.developer_scores), datasets: [{ label: 'Avg Score', data: Object.values(data.developer_scores), backgroundColor: 'orange' }] }
+            });
+            // Score distribution (pie)
+            new Chart(document.getElementById('distChart'), {
+                type: 'pie',
+                data: { labels: Object.keys(data.score_distribution), datasets: [{ data: Object.values(data.score_distribution), backgroundColor: ['red','orange','yellow','lightgreen','green','darkgreen'] }] }
+            });
+            // Platform scores (bar)
+            new Chart(document.getElementById('platformChart'), {
+                type: 'bar',
+                data: { labels: Object.keys(data.platform_scores), datasets: [{ label: 'Avg Score', data: Object.values(data.platform_scores), backgroundColor: 'purple' }] }
+            });
+            // Series scores (horizontal bar)
+            new Chart(document.getElementById('seriesChart'), {
+                type: 'bar',
+                data: { labels: Object.keys(data.series_scores), datasets: [{ label: 'Avg Score', data: Object.values(data.series_scores), backgroundColor: 'teal' }] },
+                options: { indexAxis: 'y' }
+            });
+        }
+        loadStats();
+    </script>
+</body>
+</html>

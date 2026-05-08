@@ -1,0 +1,10 @@
+{
+  "steps": [
+    "refresh"
+  ],
+  "refresh": {
+    "total": 200,
+    "added": 0,
+    "updated": 0
+  }
+}

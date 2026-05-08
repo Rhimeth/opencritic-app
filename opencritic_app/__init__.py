@@ -1,0 +1,2 @@
+"""OpenCritic ML app package."""
+
