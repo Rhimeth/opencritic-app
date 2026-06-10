@@ -2,4 +2,12 @@ numpy
 pandas
 requests
 scikit-learn
-uvicorn
+uvicorn[standard]
+fastapi
+pydantic
+sentence-transformers
+transformers
+torch
+feedparser
+beautifulsoup4
+python-dotenv
