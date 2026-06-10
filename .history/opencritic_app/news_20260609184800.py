@@ -14,7 +14,7 @@ try:
 except ImportError:
     _HAS_SENTENCE_TRANSFORMERS = False
 
-# Abstractive summarization
+# For abstractive summarization
 try:
     from transformers import pipeline
     _HAS_TRANSFORMERS = True

@@ -14,7 +14,7 @@ try:
 except ImportError:
     _HAS_SENTENCE_TRANSFORMERS = False
 
-# Abstractive summarization
+# For abstractive summarization
 try:
     from transformers import pipeline
     _HAS_TRANSFORMERS = True
@@ -45,10 +45,10 @@ class GamingNewsService:
         ("PC Gamer", "https://www.pcgamer.com/rss/"),
         ("Rock Paper Shotgun", "https://www.rockpapershotgun.com/feed"),
         ("Eurogamer", "https://www.eurogamer.net/?format=rss"),
-        ("Destructoid", "https://www.destructoid.com/feed/"),
-        ("Gematsu", "https://www.gematsu.com/feed"),
-        ("Nintendo Life", "https://www.nintendolife.com/feeds/latest"),
-        ("This Week In Videogames", "https://thisweekinvideogames.com/feed/"),
+        ("Destructoid", "https://www.destructoid.com/feed/"),  # corrected feed URL
+        ("Gematsu", "https://www.gematsu.com/feed"),          # corrected
+        ("Nintendo Life", "https://www.nintendolife.com/feeds/latest"),  # corrected
+        ("This Week In Videogames", "https://thisweekinvideogames.com/feed/"),  # added /feed
     ]
 
     def __init__(self, enable_deduplication: bool = True, similarity_threshold: float = 0.85):
@@ -65,6 +65,7 @@ class GamingNewsService:
     def _load_summarizer(self):
         if self.summarizer is None and _HAS_TRANSFORMERS:
             try:
+                # Use a small, fast model (T5-small fine-tuned on news)
                 self.summarizer = pipeline("summarization", model="t5-small", device=-1)  # -1 = CPU
                 print("Abstractive summarizer loaded.")
             except Exception as e:
@@ -156,6 +157,7 @@ class GamingNewsService:
                     if not title:
                         continue
 
+                    # Use abstractive summarization (with caching)
                     summary = self._summarize_abstractive(description)
 
                     items.append(

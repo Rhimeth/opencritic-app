@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Developer Profile – GameScore AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <style>body { background: #09090b; }</style>
+</head>
+<body class="bg-neutral-950 text-gray-200">
+    <div class="max-w-5xl mx-auto px-4 py-8">
+        <div class="mb-6"><a href="/developers" class="text-blue-400 hover:underline">← Back to Developers</a></div>
+        <div id="content">Loading...</div>
+    </div>
+    <script>
+        const devName = decodeURIComponent(window.location.pathname.split('/').pop());
+        async function loadDeveloper() {
+            const res = await fetch(`/api/developer/${encodeURIComponent(devName)}`);
+            if (!res.ok) {
+                document.getElementById('content').innerHTML = '<div class="text-center text-red-400">Developer not found.</div>';
+                return;
+            }
+            const data = await res.json();
+            let html = `
+                <h1 class="text-3xl font-bold text-green-400 mb-2">${data.developer}</h1>
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div class="bg-neutral-900 rounded-2xl p-4 text-center"><span class="text-2xl font-bold">${data.avg_score.toFixed(1)}</span><p class="text-gray-400 text-sm">Average Score</p></div>
+                    <div class="bg-neutral-900 rounded-2xl p-4 text-center"><span class="text-2xl font-bold">${data.game_count}</span><p class="text-gray-400 text-sm">Games Developed</p></div>
+                </div>
+                <div class="bg-neutral-900 rounded-2xl p-5"><h3 class="text-xl font-semibold mb-3">Game Catalog</h3><div class="overflow-x-auto"><table id="gamesTable" class="min-w-full"><thead><tr><th class="text-left py-2">Title</th><th>Score</th><th>Release Date</th><th>Platform</th><th>Genre</th></tr></thead><tbody>`;
+            for (let g of data.games) {
+                html += `<tr><td class="py-1">${g.title}</td><td>${g.score}</td><td>${g.release_date}</td><td>${g.platform}</td><td>${g.genre}</td></tr>`;
+            }
+            html += `</tbody></table></div></div>`;
+            document.getElementById('content').innerHTML = html;
+            $('#gamesTable').DataTable({ order: [[1, 'desc']] });
+        }
+        loadDeveloper();
+    </script>
+</body>
+</html>

@@ -158,7 +158,7 @@
         // Initial load
         loadNews();
 
-        // Global search
+        // Global search (optional, redirects to /search-page?q=...)
         const searchInput = document.getElementById('globalSearch');
         searchInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter' && searchInput.value.trim()) {

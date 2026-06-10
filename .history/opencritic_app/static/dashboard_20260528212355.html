@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GameScore AI – Advanced Analytics Dashboard</title>
+    <!-- Bootstrap 5 + Icons + DataTables + Chart.js -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #e9ecef 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .card {
+            border: none;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            margin-bottom: 24px;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.1);
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 20px;
+        }
+        .filter-bar {
+            background: white;
+            border-radius: 20px;
+            padding: 20px 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 12px;
+            padding: 8px 24px;
+            font-weight: 500;
+        }
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #5a67d8 0%, #6b46a0 100%);
+            transform: scale(1.02);
+        }
+        .btn-outline-secondary {
+            border-radius: 12px;
+        }
+        canvas {
+            max-height: 280px;
+            width: 100%;
+        }
+        .table-container {
+            max-height: 400px;
+            overflow-y: auto;
+            border-radius: 16px;
+        }
+        .live-prediction-card {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        .form-range::-webkit-slider-thumb {
+            background: #667eea;
+        }
+        h5 {
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+        .badge-score {
+            background: #28a745;
+            font-size: 1.2rem;
+            padding: 8px 16px;
+            border-radius: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12 text-center">
+                <h1 class="display-4 fw-bold" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                    🎮 GameScore AI
+                </h1>
+                <p class="text-muted">Intelligent Game Analytics & Score Predictions</p>
+            </div>
+        </div>
+
+        <!-- Stats Cards Row -->
+        <div class="row mb-4 g-3">
+            <div class="col-md-3">
+                <div class="card stat-card p-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div><i class="bi bi-controller fs-1"></i></div>
+                        <div class="text-end">
+                            <h2 id="totalGames" class="mb-0">0</h2>
+                            <small>Total Games</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card p-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div><i class="bi bi-trophy fs-1"></i></div>
+                        <div class="text-end">
+                            <h2 id="avgScore" class="mb-0">0</h2>
+                            <small>Avg Score</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card p-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div><i class="bi bi-building fs-1"></i></div>
+                        <div class="text-end">
+                            <h2 id="totalDevs" class="mb-0">0</h2>
+                            <small>Developers</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card p-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div><i class="bi bi-calendar fs-1"></i></div>
+                        <div class="text-end">
+                            <h2 id="yearRange" class="mb-0">0</h2>
+                            <small>Years Range</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="filter-bar row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label fw-semibold">Developer</label>
+                <select id="devFilter" class="form-select">
+                    <option value="">All Developers</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-semibold">Genre</label>
+                <select id="genreFilter" class="form-select">
+                    <option value="">All Genres</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-semibold">Min Score</label>
+                <input type="range" id="scoreSlider" class="form-range" min="0" max="100" step="5" value="0">
+                <span id="scoreValue" class="badge bg-secondary mt-1">≥ 0</span>
+            </div>
+            <div class="col-md-1">
+                <button id="applyFilters" class="btn btn-primary w-100">Apply</button>
+            </div>
+            <div class="col-md-2">
+                <button id="resetFilters" class="btn btn-outline-secondary w-100">Reset</button>
+            </div>
+        </div>
+
+        <!-- Live Prediction Card -->
+        <div class="card live-prediction-card p-4 mb-4">
+            <div class="row align-items-center">
+                <div class="col-md-4">
+                    <h4 class="mb-0">⚡ Live Score Predictor</h4>
+                    <small>Estimate a game's OpenCritic score</small>
+                </div>
+                <div class="col-md-8">
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <input type="text" id="predTitle" class="form-control" placeholder="Title (optional)">
+                        </div>
+                        <div class="col-md-3">
+                            <select id="predGenre" class="form-select">
+                                <option>Action</option>
+                                <option>RPG</option>
+                                <option>Strategy</option>
+                                <option>Adventure</option>
+                                <option>Simulation</option>
+                                <option>Sports</option>
+                                <option>Puzzle</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <select id="predPlatform" class="form-select">
+                                <option>PC</option>
+                                <option>PlayStation 5</option>
+                                <option>Xbox Series X/S</option>
+                                <option>Nintendo Switch</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <input type="text" id="predDeveloper" class="form-control" placeholder="Developer (optional)">
+                        </div>
+                        <div class="col-md-2">
+                            <button onclick="predictLive()" class="btn btn-light w-100 fw-bold">Predict →</button>
+                        </div>
+                    </div>
+                    <div id="livePrediction" class="mt-3 text-center"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Row 1 -->
+        <div class="row">
+            <div class="col-md-6"><div class="card p-3"><h5>📈 Scores Over Time</h5><canvas id="yearChart"></canvas></div></div>
+            <div class="col-md-6"><div class="card p-3"><h5>🏷️ Top Genres by Average Score</h5><canvas id="genreChart"></canvas></div></div>
+        </div>
+        <!-- Charts Row 2 -->
+        <div class="row">
+            <div class="col-md-6"><div class="card p-3"><h5>👨‍💻 Top Developers (min 3 games)</h5><canvas id="devChart"></canvas></div></div>
+            <div class="col-md-6"><div class="card p-3"><h5>📊 Score Distribution</h5><canvas id="distChart"></canvas></div></div>
+        </div>
+        <!-- Charts Row 3 -->
+        <div class="row">
+            <div class="col-md-6"><div class="card p-3"><h5>🖥️ Platform Performance</h5><canvas id="platformChart"></canvas></div></div>
+            <div class="col-md-6"><div class="card p-3"><h5>🎮 Game Series / Franchises</h5><canvas id="seriesChart"></canvas></div></div>
+        </div>
+
+        <!-- Interactive Tables -->
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card p-3">
+                    <h5>🏆 Top Developers – Sortable Table</h5>
+                    <div class="table-container">
+                        <table id="devTable" class="table table-striped table-sm">
+                            <thead><tr><th>Developer</th><th>Avg Score</th><th>Games Count</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card p-3">
+                    <h5>🎮 Top Games – Search & Sort</h5>
+                    <div class="table-container">
+                        <table id="gamesTable" class="table table-striped table-sm">
+                            <thead><tr><th>Title</th><th>Score</th><th>Genre</th><th>Platform</th><th>Developer</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let yearChart, genreChart, devChart, distChart, platformChart, seriesChart;
+
+        // ---------- Helper to destroy charts ----------
+        function destroyChart(chart) {
+            if (chart) chart.destroy();
+        }
+
+        // ---------- Render all charts from analytics data ----------
+        function renderAllCharts(data) {
+            // 1. Scores Over Time (line)
+            const years = Object.keys(data.yearly_scores);
+            const yearlyScores = Object.values(data.yearly_scores);
+            const yearCtx = document.getElementById('yearChart').getContext('2d');
+            destroyChart(yearChart);
+            yearChart = new Chart(yearCtx, {
+                type: 'line',
+                data: { labels: years, datasets: [{ label: 'Avg Score', data: yearlyScores, borderColor: '#667eea', backgroundColor: 'rgba(102,126,234,0.1)', fill: true, tension: 0.3 }] },
+                options: { responsive: true, maintainAspectRatio: true }
+            });
+
+            // 2. Top Genres (horizontal bar)
+            const genres = Object.keys(data.genre_scores);
+            const genreScores = Object.values(data.genre_scores);
+            const genreCtx = document.getElementById('genreChart').getContext('2d');
+            destroyChart(genreChart);
+            genreChart = new Chart(genreCtx, {
+                type: 'bar',
+                data: { labels: genres, datasets: [{ label: 'Avg Score', data: genreScores, backgroundColor: '#28a745' }] },
+                options: { indexAxis: 'y', responsive: true }
+            });
+
+            // 3. Top Developers (bar)
+            const devs = Object.keys(data.developer_scores);
+            const devScores = Object.values(data.developer_scores);
+            const devCtx = document.getElementById('devChart').getContext('2d');
+            destroyChart(devChart);
+            devChart = new Chart(devCtx, {
+                type: 'bar',
+                data: { labels: devs, datasets: [{ label: 'Avg Score', data: devScores, backgroundColor: '#fd7e14' }] },
+                options: { responsive: true }
+            });
+
+            // 4. Score Distribution (bar chart – more informative than pie)
+            const distLabels = Object.keys(data.score_distribution);
+            const distCounts = Object.values(data.score_distribution);
+            const distCtx = document.getElementById('distChart').getContext('2d');
+            destroyChart(distChart);
+            distChart = new Chart(distCtx, {
+                type: 'bar',
+                data: { labels: distLabels, datasets: [{ label: 'Number of Games', data: distCounts, backgroundColor: '#6c5ce7' }] },
+                options: { responsive: true, plugins: { tooltip: { callbacks: { label: (ctx) => `${ctx.raw} games` } } } }
+            });
+
+            // 5. Platform Performance (bar)
+            const platforms = Object.keys(data.platform_scores);
+            const platformScores = Object.values(data.platform_scores);
+            const platformCtx = document.getElementById('platformChart').getContext('2d');
+            destroyChart(platformChart);
+            platformChart = new Chart(platformCtx, {
+                type: 'bar',
+                data: { labels: platforms, datasets: [{ label: 'Avg Score', data: platformScores, backgroundColor: '#e84393' }] },
+                options: { responsive: true }
+            });
+
+            // 6. Series / Franchises (horizontal bar)
+            const series = Object.keys(data.series_scores);
+            const seriesScores = Object.values(data.series_scores);
+            const seriesCtx = document.getElementById('seriesChart').getContext('2d');
+            destroyChart(seriesChart);
+            seriesChart = new Chart(seriesCtx, {
+                type: 'bar',
+                data: { labels: series, datasets: [{ label: 'Avg Score', data: seriesScores, backgroundColor: '#00b894' }] },
+                options: { indexAxis: 'y', responsive: true }
+            });
+        }
+
+        // ---------- Populate developer and genre dropdowns ----------
+        function populateFilters(data) {
+            const devSelect = document.getElementById('devFilter');
+            const genreSelect = document.getElementById('genreFilter');
+            devSelect.innerHTML = '<option value="">All Developers</option>';
+            genreSelect.innerHTML = '<option value="">All Genres</option>';
+            for (let dev in data.developer_scores) {
+                let opt = document.createElement('option');
+                opt.value = dev;
+                opt.text = dev;
+                devSelect.appendChild(opt);
+            }
+            for (let genre in data.genre_scores) {
+                let opt = document.createElement('option');
+                opt.value = genre;
+                opt.text = genre;
+                genreSelect.appendChild(opt);
+            }
+        }
+
+        // ---------- Render developer table (with counts) ----------
+        function renderDeveloperTable(data) {
+            let tbody = document.querySelector('#devTable tbody');
+            tbody.innerHTML = '';
+            for (let [dev, score] of Object.entries(data.developer_scores)) {
+                let count = data.developer_counts[dev] || '?';
+                let row = `<tr><td>${dev}</td><td>${score}</td><td>${count}</td></tr>`;
+                tbody.insertAdjacentHTML('beforeend', row);
+            }
+            $('#devTable').DataTable({ paging: true, searching: true, order: [[1, 'desc']], destroy: true });
+        }
+
+        // ---------- Render games table (with optional filters) ----------
+        async function renderGamesTable(developer = '', genre = '', minScore = 0) {
+            let url = `/games?limit=100&min_score=${minScore}`;
+            if (developer) url += `&developer=${encodeURIComponent(developer)}`;
+            if (genre) url += `&genre=${encodeURIComponent(genre)}`;
+            const res = await fetch(url);
+            const games = await res.json();
+            let tbody = document.querySelector('#gamesTable tbody');
+            tbody.innerHTML = '';
+            for (let g of games) {
+                let row = `<tr><td>${g.title}</td><td>${g.score}</td><td>${g.genre}</td><td>${g.platform}</td><td>${g.developer}</td></tr>`;
+                tbody.insertAdjacentHTML('beforeend', row);
+            }
+            $('#gamesTable').DataTable({ paging: true, searching: true, order: [[1, 'desc']], destroy: true });
+        }
+
+        // ---------- Update stats cards ----------
+        function updateStatsCards(data) {
+            // total games: sum of developer_counts
+            let total = 0;
+            for (let cnt of Object.values(data.developer_counts)) total += cnt;
+            document.getElementById('totalGames').innerText = total || '0';
+            
+            const avg = Object.values(data.developer_scores).reduce((a, b) => a + b, 0) / (Object.keys(data.developer_scores).length || 1);
+            document.getElementById('avgScore').innerText = avg.toFixed(1);
+            document.getElementById('totalDevs').innerText = Object.keys(data.developer_scores).length;
+            
+            const years = Object.keys(data.yearly_scores);
+            if (years.length) {
+                const minYear = Math.min(...years);
+                const maxYear = Math.max(...years);
+                document.getElementById('yearRange').innerHTML = `${minYear}–${maxYear}`;
+            } else {
+                document.getElementById('yearRange').innerHTML = 'N/A';
+            }
+        }
+
+        // ---------- Main load stats function ----------
+        async function loadStats() {
+            const res = await fetch('/analytics/stats');
+            const data = await res.json();
+            renderAllCharts(data);
+            populateFilters(data);
+            renderDeveloperTable(data);
+            updateStatsCards(data);
+            await renderGamesTable();
+        }
+
+        // ---------- Apply filters ----------
+        document.getElementById('applyFilters').addEventListener('click', async () => {
+            const developer = document.getElementById('devFilter').value;
+            const genre = document.getElementById('genreFilter').value;
+            const minScore = document.getElementById('scoreSlider').value;
+            let statsUrl = `/analytics/stats?min_score=${minScore}`;
+            if (developer) statsUrl += `&developer=${encodeURIComponent(developer)}`;
+            if (genre) statsUrl += `&genre=${encodeURIComponent(genre)}`;
+            const statsRes = await fetch(statsUrl);
+            const filteredData = await statsRes.json();
+            renderAllCharts(filteredData);
+            renderDeveloperTable(filteredData);
+            updateStatsCards(filteredData);
+            await renderGamesTable(developer, genre, minScore);
+        });
+
+        document.getElementById('resetFilters').addEventListener('click', () => {
+            document.getElementById('devFilter').value = '';
+            document.getElementById('genreFilter').value = '';
+            document.getElementById('scoreSlider').value = 0;
+            document.getElementById('scoreValue').innerText = '≥ 0';
+            loadStats();
+        });
+
+        document.getElementById('scoreSlider').addEventListener('input', (e) => {
+            document.getElementById('scoreValue').innerText = `≥ ${e.target.value}`;
+        });
+
+        // ---------- Live prediction ----------
+        window.predictLive = async function() {
+            const genre = document.getElementById('predGenre').value;
+            const platform = document.getElementById('predPlatform').value;
+            const developer = document.getElementById('predDeveloper').value || 'Unknown';
+            const title = document.getElementById('predTitle').value || 'Custom game';
+            const payload = {
+                reviews: 0,
+                percent_recommended: 0,
+                genre: genre,
+                platform: platform,
+                developer: developer,
+                publisher: 'Unknown'
+            };
+            const res = await fetch('/predict', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const json = await res.json();
+            const prediction = json.predicted_score;
+            document.getElementById('livePrediction').innerHTML = `
+                <div class="alert alert-light mt-2 mb-0">
+                    <strong>${title}</strong> predicted score: 
+                    <span class="badge-score bg-success text-white px-3 py-2 rounded-pill">${prediction}</span>
+                </div>
+            `;
+        };
+
+        // Initial load
+        loadStats();
+    </script>
+</body>
+</html>

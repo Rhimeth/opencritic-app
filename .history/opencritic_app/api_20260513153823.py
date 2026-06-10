@@ -1,7 +1,3 @@
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -9,9 +5,10 @@ from pydantic import BaseModel
 from typing import List, Optional
 import pandas as pd
 
-from opencritic_app.data import OpenCriticDataClient
-from opencritic_app.ml import ScorePredictor, GameRecommender
-from opencritic_app.news import GamingNewsService
+# Use relative imports because this file is inside the package
+from .data import OpenCriticDataClient
+from .ml import ScorePredictor, GameRecommender
+from .news import GamingNewsService
 
 app = FastAPI(title="OpenCritic ML API")
 
@@ -20,16 +17,8 @@ client = OpenCriticDataClient()
 client._load_database()
 df = client.to_dataframe()
 
+# Pre‑compute primary_genre once for efficiency
 df['primary_genre'] = df['genre'].str.split(',').str[0]
-
-# Helper function for series extraction (reused in analytics)
-def extract_series(title: str) -> str:
-    words = title.split()
-    if len(words) >= 2 and words[0].lower() in ['super', 'the', 'call', 'final', 'grand', 'resident', 'street', 'mortal', 'assassin', 'god', 'metal', 'borderlands']:
-        return f"{words[0]} {words[1]}"
-    return words[0] if words else title
-
-df['series'] = df['title'].apply(extract_series)
 
 predictor = ScorePredictor()
 predictor.fit(df)
@@ -39,6 +28,7 @@ recommender.fit(df)
 
 news_service = GamingNewsService(enable_deduplication=True)
 
+# Request & response models
 class PredictRequest(BaseModel):
     reviews: int = 0
     percent_recommended: float = 0
@@ -51,7 +41,7 @@ class RecommendRequest(BaseModel):
     title: str
     k: int = 5
 
-# -------------------- JSON API Endpoints --------------------
+# API Endpoints
 @app.post("/predict")
 def predict_score(game: PredictRequest):
     features = game.dict()
@@ -63,7 +53,7 @@ def recommend_games(game: RecommendRequest):
     recs = recommender.recommend(game.title, game.k)
     return {"recommendations": recs}
 
-@app.get("/api/news")   # JSON endpoint for news data
+@app.get("/news")
 def get_news(per_source: int = 5, deduplicate: bool = True):
     items = news_service.fetch(per_source=per_source, deduplicate=deduplicate)
     return {"news": [item.to_dict() for item in items]}
@@ -84,6 +74,7 @@ def get_analytics_stats(
     min_score: float = 0.0
 ):
     filtered = df.copy()
+
     if developer:
         filtered = filtered[filtered['developer'].str.contains(developer, case=False, na=False)]
     if genre:
@@ -93,27 +84,44 @@ def get_analytics_stats(
 
     if filtered.empty:
         return {
-            "yearly_scores": {}, "genre_scores": {}, "developer_scores": {}, "developer_counts": {},
-            "score_distribution": {}, "platform_scores": {}, "series_scores": {}
+            "yearly_scores": {},
+            "genre_scores": {},
+            "developer_scores": {},
+            "developer_counts": {},
+            "score_distribution": {},
+            "platform_scores": {},
+            "series_scores": {}
         }
 
+    # 1. Yearly scores
     df_year = filtered.copy()
     df_year['release_year'] = pd.to_datetime(df_year['release_date'], errors='coerce').dt.year
     yearly_avg = df_year.groupby('release_year')['score'].mean().dropna().sort_index()
 
+    # 2. Genre scores
     genre_avg = filtered.groupby('primary_genre')['score'].mean().sort_values(ascending=False)
 
+    # 3. Developer scores & counts
     dev_counts = filtered['developer'].value_counts()
     top_devs = dev_counts[dev_counts >= 3].index[:10]
     dev_avg = filtered[filtered['developer'].isin(top_devs)].groupby('developer')['score'].mean().sort_values(ascending=False)
     dev_count_series = dev_counts[top_devs]
 
+    # 4. Score distribution
     score_bins = [0, 50, 60, 70, 80, 90, 101]
     score_labels = ['0-49', '50-59', '60-69', '70-79', '80-89', '90-100']
     filtered['score_bin'] = pd.cut(filtered['score'], bins=score_bins, labels=score_labels, right=False)
     score_dist = filtered['score_bin'].value_counts().sort_index()
 
+    # 5. Platform scores
     platform_avg = filtered.groupby('platform')['score'].mean().sort_values(ascending=False).head(8)
+
+    # 6. Series / franchises
+    def extract_series(title):
+        words = title.split()
+        if len(words) >= 2 and words[0].lower() in ['super', 'the', 'call', 'final', 'grand', 'resident', 'street', 'mortal', 'assassin', 'god', 'metal', 'borderlands']:
+            return f"{words[0]} {words[1]}"
+        return words[0] if words else title
 
     filtered['series'] = filtered['title'].apply(extract_series)
     series_counts = filtered['series'].value_counts()
@@ -147,58 +155,9 @@ def list_games(
     filtered = filtered.sort_values('score', ascending=False).head(limit)
     return filtered[['title', 'score', 'genre', 'platform', 'developer']].to_dict(orient='records')
 
-@app.get("/api/developers")
-def list_developers():
-    dev_stats = df.groupby('developer').agg(
-        avg_score=('score', 'mean'),
-        game_count=('title', 'count')
-    ).reset_index()
-    dev_stats = dev_stats[dev_stats['developer'] != 'Unknown'].sort_values('avg_score', ascending=False)
-    return dev_stats.to_dict(orient='records')
-
-@app.get("/api/developer/{name}")
-def developer_details(name: str):
-    games = df[df['developer'].str.lower() == name.lower()]
-    if games.empty:
-        raise HTTPException(status_code=404, detail="Developer not found")
-    result = {
-        "developer": name,
-        "avg_score": games['score'].mean(),
-        "game_count": len(games),
-        "games": games[['title', 'score', 'release_date', 'platform', 'genre']].to_dict(orient='records')
-    }
-    return result
-
-# -------------------- HTML Page Endpoints --------------------
-@app.get("/", response_class=HTMLResponse)
-async def homepage():
-    with open("opencritic_app/static/index.html", "r", encoding="utf-8") as f:
+@app.get("/dashboard", response_class=HTMLResponse)
+async def get_dashboard():
+    with open("static/dashboard.html", "r", encoding="utf-8") as f:
         return f.read()
 
-@app.get("/stats", response_class=HTMLResponse)
-async def stats_page():
-    with open("opencritic_app/static/stats.html", "r", encoding="utf-8") as f:
-        return f.read()
-
-@app.get("/news", response_class=HTMLResponse)
-async def news_page():
-    with open("opencritic_app/static/news.html", "r", encoding="utf-8") as f:
-        return f.read()
-
-@app.get("/developers", response_class=HTMLResponse)
-async def developers_page():
-    with open("opencritic_app/static/developers.html", "r", encoding="utf-8") as f:
-        return f.read()
-
-@app.get("/developer/{name}", response_class=HTMLResponse)
-async def developer_page(name: str):
-    with open("opencritic_app/static/developer.html", "r", encoding="utf-8") as f:
-        return f.read()
-
-@app.get("/search", response_class=HTMLResponse)
-async def search_page():
-    with open("opencritic_app/static/search.html", "r", encoding="utf-8") as f:
-        return f.read()
-
-# Serve static files (CSS, JS, images) – optional, but keep for assets
-app.mount("/static", StaticFiles(directory="opencritic_app/static"), name="static")
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static", html=True), name="static")

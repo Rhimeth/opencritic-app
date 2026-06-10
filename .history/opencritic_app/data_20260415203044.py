@@ -13,6 +13,7 @@ import requests
 
 
 def _parse_env_line(line: str) -> Optional[Tuple[str, str]]:
+    """Parse a single KEY=VALUE line (first '=' only). Tolerates a missing closing quote."""
     s = line.strip()
     if not s or s.startswith("#"):
         return None
@@ -37,6 +38,12 @@ def _parse_env_line(line: str) -> Optional[Tuple[str, str]]:
 
 
 def _load_project_dotenv() -> None:
+    """Load project .env into os.environ (does not override existing vars).
+
+    Uses utf-8-sig to strip UTF-8 BOM (common on Windows), normalizes curly
+    quotes, and parses lines with a tolerant parser so a single opening ``"``
+    without a closing quote (common copy/paste mistake) still works.
+    """
     path = Path(__file__).resolve().parent.parent / ".env"
     if not path.exists():
         return
@@ -86,6 +93,9 @@ class GameRecord:
 
 
 class OpenCriticDataClient:
+    """Incremental data ingestion client for OpenCritic (RapidAPI-hosted)."""
+
+    # Public api.opencritic.com returns 400 without a key. RapidAPI uses /game (not /api/game).
     RAPIDAPI_BASE = "https://opencritic-api.p.rapidapi.com/game"
     RAPIDAPI_HOST = "opencritic-api.p.rapidapi.com"
 
@@ -143,19 +153,7 @@ class OpenCriticDataClient:
         names = [it.get(key, "").strip() for it in items if it.get(key)]
         return ", ".join(names[:limit]) if names else "Unknown"
 
-    def _fetch_game_details(self, game_id: int) -> Optional[Dict]:
-        """Fetch full game details including Companies from the individual endpoint."""
-        url = f"{self.base_url}/{game_id}"
-        try:
-            response = requests.get(url, headers=self.headers, timeout=30)
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            print(f"Warning: Failed to fetch details for game {game_id}: {e}")
-            return None
-
-    def _parse_game(self, payload: Dict, is_full_detail: bool = False) -> Optional[GameRecord]:
-        """Parse game data. If is_full_detail=True, we expect Companies field."""
+    def _parse_game(self, payload: Dict) -> Optional[GameRecord]:
         game_id = payload.get("id")
         if not game_id:
             return None
@@ -163,20 +161,16 @@ class OpenCriticDataClient:
         if score is None:
             return None
 
+        companies = payload.get("Companies", [])
         developer = "Unknown"
         publisher = "Unknown"
-        if is_full_detail:
-            companies = payload.get("Companies", [])
-            for comp in companies:
-                ctype = str(comp.get("type", "")).lower()
-                name = comp.get("name", "Unknown")
-                if "developer" in ctype and developer == "Unknown":
-                    developer = name
-                if "publisher" in ctype and publisher == "Unknown":
-                    publisher = name
-        else:
-            developer = payload.get("developer") or payload.get("developers") or "Unknown"
-            publisher = payload.get("publisher") or payload.get("publishers") or "Unknown"
+        for comp in companies:
+            ctype = str(comp.get("type", "")).lower()
+            name = comp.get("name", "Unknown")
+            if "developer" in ctype and developer == "Unknown":
+                developer = name
+            if "publisher" in ctype and publisher == "Unknown":
+                publisher = name
 
         release = payload.get("firstReleaseDate")
         if isinstance(release, int):
@@ -204,10 +198,12 @@ class OpenCriticDataClient:
         pages: int = 5,
         page_size: int = 20,
         page_delay_seconds: float = 2.0,
-        sort_by: str = "date",
-        fetch_details: bool = True,
-        detail_delay_seconds: float = 1.0,
     ) -> Dict[str, Any]:
+        """Fetch new data and update local database incrementally.
+
+        RapidAPI free tiers often return 429 if pages are requested back-to-back; we
+        wait between pages and retry with backoff on 429.
+        """
         if not self.api_key:
             raise ValueError(
                 "OpenCritic data refresh requires a RapidAPI key. "
@@ -219,49 +215,27 @@ class OpenCriticDataClient:
         for page in range(pages):
             if page > 0 and page_delay_seconds > 0:
                 time.sleep(page_delay_seconds)
-            params = {"skip": page * page_size, "limit": page_size, "sort": sort_by}
+            params = {"skip": page * page_size, "limit": page_size, "sort": "date"}
             payload = self._get_game_list_payload(params)
             games = payload if isinstance(payload, list) else payload.get("data", [])
 
             for game_payload in games:
-                game_id = game_payload.get("id")
-                if not game_id:
+                record = self._parse_game(game_payload)
+                if record is None:
                     continue
-
-                existing = self.records.get(game_id)
-                if existing is None and fetch_details:
-                    full_payload = self._fetch_game_details(game_id)
-                    if full_payload:
-                        record = self._parse_game(full_payload, is_full_detail=True)
-                        if record:
-                            self.records[record.game_id] = record
-                            added += 1
-                            if detail_delay_seconds > 0:
-                                time.sleep(detail_delay_seconds)
-                            continue
-                    record = self._parse_game(game_payload, is_full_detail=False)
-                    if record:
-                        self.records[record.game_id] = record
-                        added += 1
-                else:
-                    record = self._parse_game(game_payload, is_full_detail=False)
-                    if record and (existing.score != record.score or existing.reviews != record.reviews):
-                        if existing.developer != "Unknown":
-                            record.developer = existing.developer
-                        if existing.publisher != "Unknown":
-                            record.publisher = existing.publisher
-                        self.records[record.game_id] = record
-                        updated += 1
-                    elif not existing:
-                        record = self._parse_game(game_payload, is_full_detail=False)
-                        if record:
-                            self.records[record.game_id] = record
-                            added += 1
+                existing = self.records.get(record.game_id)
+                if existing is None:
+                    self.records[record.game_id] = record
+                    added += 1
+                elif existing.score != record.score or existing.reviews != record.reviews:
+                    self.records[record.game_id] = record
+                    updated += 1
 
         self._save_database()
         return {"total": len(self.records), "added": added, "updated": updated}
 
     def _get_game_list_payload(self, params: Dict[str, Any]) -> Any:
+        """GET game list with 429 retry/backoff (RapidAPI rate limits)."""
         max_attempts = 8
         backoff = 2.0
         last: Optional[requests.Response] = None
@@ -289,3 +263,4 @@ class OpenCriticDataClient:
     def to_dataframe(self) -> pd.DataFrame:
         rows = [rec.to_dict() for rec in self.records.values()]
         return pd.DataFrame(rows)
+

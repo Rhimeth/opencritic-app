@@ -195,10 +195,5 @@ async def developer_page(name: str):
     with open("opencritic_app/static/developer.html", "r", encoding="utf-8") as f:
         return f.read()
 
-@app.get("/search", response_class=HTMLResponse)
-async def search_page():
-    with open("opencritic_app/static/search.html", "r", encoding="utf-8") as f:
-        return f.read()
-
 # Serve static files (CSS, JS, images) – optional, but keep for assets
 app.mount("/static", StaticFiles(directory="opencritic_app/static"), name="static")

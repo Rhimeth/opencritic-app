@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Developers – GameScore AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <style>
+        body { background: #09090b; }
+    </style>
+</head>
+<body class="bg-neutral-950 text-gray-200 font-sans">
+    <div class="max-w-7xl mx-auto px-4 py-8">
+        <div class="mb-6"><a href="/" class="text-blue-400 hover:underline">← Back to Hub</a></div>
+        <h1 class="text-3xl font-bold bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent mb-2">Game Developers</h1>
+        <p class="text-gray-400 mb-6">Browse studios by average critic score and number of games</p>
+
+        <div class="overflow-x-auto">
+            <table id="devTable" class="min-w-full bg-neutral-900 rounded-2xl overflow-hidden">
+                <thead class="bg-neutral-800"><tr><th class="px-4 py-3 text-left">Developer</th><th class="px-4 py-3 text-left">Avg Score</th><th class="px-4 py-3 text-left">Games</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+    <script>
+        async function loadDevelopers() {
+            const res = await fetch('/api/developers');
+            const devs = await res.json();
+            const tbody = document.querySelector('#devTable tbody');
+            tbody.innerHTML = '';
+            for (let d of devs) {
+                tbody.innerHTML += `<tr class="border-b border-neutral-800 hover:bg-neutral-800 transition"><td class="px-4 py-2"><a href="/developer/${encodeURIComponent(d.developer)}" class="text-blue-400 hover:underline">${d.developer}</a></td><td class="px-4 py-2">${d.avg_score.toFixed(1)}</td><td class="px-4 py-2">${d.game_count}</td></tr>`;
+            }
+            $('#devTable').DataTable({ order: [[1, 'desc']], pageLength: 25, language: { search: "Filter:" } });
+        }
+        loadDevelopers();
+    </script>
+</body>
+</html>

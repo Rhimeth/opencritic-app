@@ -14,14 +14,6 @@ try:
 except ImportError:
     _HAS_SENTENCE_TRANSFORMERS = False
 
-# Abstractive summarization
-try:
-    from transformers import pipeline
-    _HAS_TRANSFORMERS = True
-except ImportError:
-    _HAS_TRANSFORMERS = False
-    pipeline = None
-
 
 @dataclass
 class NewsItem:
@@ -34,7 +26,6 @@ class NewsItem:
     def to_dict(self) -> Dict:
         return asdict(self)
 
-
 class GamingNewsService:
     """Collect and summarize gaming news headlines from public feeds."""
 
@@ -45,12 +36,12 @@ class GamingNewsService:
         ("PC Gamer", "https://www.pcgamer.com/rss/"),
         ("Rock Paper Shotgun", "https://www.rockpapershotgun.com/feed"),
         ("Eurogamer", "https://www.eurogamer.net/?format=rss"),
-        ("Destructoid", "https://www.destructoid.com/feed/"),
-        ("Gematsu", "https://www.gematsu.com/feed"),
-        ("Nintendo Life", "https://www.nintendolife.com/feeds/latest"),
-        ("This Week In Videogames", "https://thisweekinvideogames.com/feed/"),
+        ("Destructoid", "https://www.destructoid.com/"),
+        ("Gematsu", "https://www.gematsu.com/"),
+        ("Nintendo Life", "https://www.nintendolife.com/"),
+        ("This Week In Videogames", "https://thisweekinvideogames.com/"),
     ]
-
+    
     def __init__(self, enable_deduplication: bool = True, similarity_threshold: float = 0.85):
         self.enable_deduplication = enable_deduplication and _HAS_SENTENCE_TRANSFORMERS
         self.similarity_threshold = similarity_threshold
@@ -58,38 +49,10 @@ class GamingNewsService:
         self.summarizer = None
         self.summary_cache = {}
         self._load_summarizer()
-
+        
         if self.enable_deduplication:
             self._load_embedder()
-
-    def _load_summarizer(self):
-        if self.summarizer is None and _HAS_TRANSFORMERS:
-            try:
-                self.summarizer = pipeline("summarization", model="t5-small", device=-1)  # -1 = CPU
-                print("Abstractive summarizer loaded.")
-            except Exception as e:
-                print(f"Summarizer not available: {e}. Falling back to extractive.")
-
-    def _summarize_abstractive(self, text: str, max_length: int = 80) -> str:
-        if not self.summarizer or len(text) < 100:
-            return self._summarize_extractive(text)
-        # Check cache
-        if text in self.summary_cache:
-            return self.summary_cache[text]
-        try:
-            summary = self.summarizer(text, max_length=max_length, min_length=20, do_sample=False)[0]['summary_text']
-            self.summary_cache[text] = summary
-            return summary
-        except Exception:
-            return self._summarize_extractive(text)
-
-    @staticmethod
-    def _summarize_extractive(text: str, max_sentences: int = 2) -> str:
-        cleaned = GamingNewsService._clean_text(text)
-        chunks = re.split(r"(?<=[.!?])\s+", cleaned)
-        summary = " ".join(chunks[:max_sentences]).strip()
-        return summary if summary else "No summary available."
-
+            
     def _load_embedder(self):
         if self._embedder is None and _HAS_SENTENCE_TRANSFORMERS:
             self._embedder = SentenceTransformer('all-MiniLM-L6-v2')
@@ -100,31 +63,53 @@ class GamingNewsService:
         text = re.sub(r"\s+", " ", text).strip()
         return text
 
+    @staticmethod
+    def _summarize(text: str, max_sentences: int = 2) -> str:
+        cleaned = GamingNewsService._clean_text(text)
+        chunks = re.split(r"(?<=[.!?])\s+", cleaned)
+        summary = " ".join(chunks[:max_sentences]).strip()
+        return summary if summary else "No summary available."
+    
     def _deduplicate(self, items: List[NewsItem]) -> List[NewsItem]:
+        """Remove duplicate stories based on similarity"""
+        
         if not self.enable_deduplication or len(items) <= 1:
             return items
-
+        
+        # Text for each item
         texts = [f"{item.title}. {item.summary}" for item in items]
+        
         embeddings = self._embedder.encode(texts, show_progress_bar=False)
-
+        
+        # Compare pairwise and build clusters
         from sklearn.metrics.pairwise import cosine_similarity
+        import numpy as np
+        
         kept_indices = []
+        
         for i in range(len(items)):
+            if i in kept_indices:
+                continue
             keep_this = True
+            
             for j in kept_indices:
                 sim = cosine_similarity([embeddings[i]], [embeddings[j]])[0][0]
+                
                 if sim > self.similarity_threshold:
                     keep_this = False
                     break
+            
             if keep_this:
                 kept_indices.append(i)
-
+        
+        # Return kept items
         return [items[i] for i in kept_indices]
+
 
     def fetch(self, per_source: int = 5, deduplicate: Optional[bool] = None) -> List[NewsItem]:
         if deduplicate is None:
             deduplicate = self.enable_deduplication
-
+        
         items: List[NewsItem] = []
         for source, url in self.FEEDS:
             try:
@@ -155,27 +140,26 @@ class GamingNewsService:
                     )
                     if not title:
                         continue
-
-                    summary = self._summarize_abstractive(description)
-
                     items.append(
                         NewsItem(
                             title=title,
                             link=link,
                             source=source,
                             published=published,
-                            summary=summary,
+                            summary=self._summarize(description),
                         )
                     )
                     count += 1
-            except Exception as e:
-                print(f"Error fetching {source}: {e}")
+            except Exception:
                 continue
-
+            
+        # Deduplicate applied if requested
         if deduplicate:
             original_count = len(items)
             items = self._deduplicate(items)
+            
             if original_count != len(items):
-                print(f"Deduplication removed {original_count - len(items)} duplicate stories.")
-
+                print(f"Deduplication removed {original_count - len(items)} deduplicated stories.")
+                
         return items
+

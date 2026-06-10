@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GameScore AI – Game Analytics</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <style>
+        body {
+            background: #f8f9fa;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 20px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            height: 100%;
+        }
+        .filter-bar {
+            background: white;
+            border-radius: 20px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .echart-box {
+            width: 100%;
+            height: 320px;
+        }
+        .btn-outline-secondary, .btn-primary {
+            border-radius: 40px;
+        }
+        h1, h2, h3, h4, h5 {
+            font-weight: 600;
+            letter-spacing: -0.01em;
+        }
+        .section-title {
+            border-left: 4px solid #0d6efd;
+            padding-left: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .score-badge {
+            font-weight: 600;
+        }
+        a {
+            color: #0d6efd;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+<div class="container py-5">
+    <div class="text-center mb-5">
+        <h1>Game Analytics & Score Predictions</h1>
+        <p class="text-muted">Explore critic scores, discover trends, and predict future game ratings</p>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row g-4 mb-5">
+        <div class="col-md-3"><div class="stat-card text-center"><h3 id="totalGames">0</h3><p class="text-muted">Total Games</p></div></div>
+        <div class="col-md-3"><div class="stat-card text-center"><h3 id="avgScore">0</h3><p class="text-muted">Average Score</p></div></div>
+        <div class="col-md-3"><div class="stat-card text-center"><h3 id="totalDevs">0</h3><p class="text-muted">Developers</p></div></div>
+        <div class="col-md-3"><div class="stat-card text-center"><h3 id="yearRange">0</h3><p class="text-muted">Year Range</p></div></div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-bar row g-3 align-items-end">
+        <div class="col-md-3"><label class="form-label fw-semibold">Developer</label><select id="devFilter" class="form-select"><option value="">All Developers</option></select></div>
+        <div class="col-md-3"><label class="form-label fw-semibold">Genre</label><select id="genreFilter" class="form-select"><option value="">All Genres</option></select></div>
+        <div class="col-md-3"><label class="form-label fw-semibold">Min Score</label><input type="range" id="scoreSlider" class="form-range" min="0" max="100" step="5" value="0"><span id="scoreValue" class="badge bg-secondary mt-1">≥ 0</span></div>
+        <div class="col-md-1"><button id="applyFilters" class="btn btn-primary w-100">Apply</button></div>
+        <div class="col-md-2"><button id="resetFilters" class="btn btn-outline-secondary w-100">Reset</button></div>
+    </div>
+
+    <!-- Live Predictor -->
+    <div class="card bg-light p-4 mb-5" style="border-radius: 20px; border: none;">
+        <div class="row align-items-center">
+            <div class="col-md-4"><h4 class="mb-0">Live Score Predictor</h4><small>Estimate an upcoming game's score</small></div>
+            <div class="col-md-8"><div class="row g-2">
+                <div class="col-md-3"><input type="text" id="predTitle" class="form-control" placeholder="Title (optional)"></div>
+                <div class="col-md-3"><select id="predGenre" class="form-select" title="Genre"><option>Action</option><option>RPG</option><option>Strategy</option><option>Adventure</option><option>Simulation</option><option>Sports</option><option>Puzzle</option></select></div>
+                <div class="col-md-2"><select id="predPlatform" class="form-select" title="Platform"><option>PC</option><option>PlayStation 5</option><option>Xbox Series X/S</option><option>Nintendo Switch</option></select></div>
+                <div class="col-md-2"><input type="text" id="predDeveloper" class="form-control" placeholder="Developer"></div>
+                <div class="col-md-2"><button onclick="predictLive()" class="btn btn-primary w-100">Predict</button></div>
+            </div><div id="livePrediction" class="mt-3"></div></div>
+        </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-6"><div class="stat-card"><h5 class="section-title">Scores Over Time</h5><div id="yearChart" class="echart-box"></div></div></div>
+        <div class="col-md-6"><div class="stat-card"><h5 class="section-title">Top Genres by Average Score</h5><div id="genreChart" class="echart-box"></div></div></div>
+    </div>
+    <div class="row g-4 mb-4">
+        <div class="col-md-6"><div class="stat-card"><h5 class="section-title">Top Developers (min 3 games)</h5><div id="devChart" class="echart-box"></div></div></div>
+        <div class="col-md-6"><div class="stat-card"><h5 class="section-title">Score Distribution</h5><div id="distChart" class="echart-box"></div></div></div>
+    </div>
+    <div class="row g-4 mb-4">
+        <div class="col-md-6"><div class="stat-card"><h5 class="section-title">Platform Performance</h5><div id="platformChart" class="echart-box"></div></div></div>
+        <div class="col-md-6"><div class="stat-card"><h5 class="section-title">Game Series / Franchises</h5><div id="seriesChart" class="echart-box"></div></div></div>
+    </div>
+
+    <!-- Tables -->
+    <div class="row g-4">
+        <div class="col-md-6"><div class="stat-card"><h5 class="section-title">Developer Rankings</h5><div class="table-responsive"><table id="devTable" class="table table-striped"><thead><tr><th>Developer</th><th>Avg Score</th><th>Games Count</th></tr></thead><tbody></tbody></table></div></div></div>
+        <div class="col-md-6"><div class="stat-card"><h5 class="section-title">Top Games</h5><div class="table-responsive"><table id="gamesTable" class="table table-striped"><thead><tr><th>Title</th><th>Score</th><th>Genre</th><th>Platform</th><th>Developer</th></tr></thead><tbody></tbody></table></div></div></div>
+    </div>
+</div>
+
+<script>
+    let charts = {};
+
+    function disposeChart(instance) { if (instance && instance.dispose) instance.dispose(); }
+
+    async function loadStats() {
+        const res = await fetch('/analytics/stats');
+        const data = await res.json();
+        renderAllCharts(data);
+        populateFilters(data);
+        renderDeveloperTable(data);
+        updateStatsCards(data);
+        await renderGamesTable();
+    }
+
+    function renderAllCharts(data) {
+        // Yearly scores
+        const years = Object.keys(data.yearly_scores);
+        const yearlyScores = Object.values(data.yearly_scores);
+        disposeChart(charts.year);
+        charts.year = echarts.init(document.getElementById('yearChart'));
+        charts.year.setOption({ tooltip: { trigger: 'axis' }, xAxis: { type: 'category', data: years, name: 'Year' }, yAxis: { type: 'value', name: 'Avg Score' }, series: [{ type: 'line', data: yearlyScores, smooth: true, lineStyle: { color: '#0d6efd', width: 3 }, areaStyle: { opacity: 0.1 } }] });
+
+        // Genres
+        const genres = Object.keys(data.genre_scores);
+        const genreScores = Object.values(data.genre_scores);
+        disposeChart(charts.genre);
+        charts.genre = echarts.init(document.getElementById('genreChart'));
+        charts.genre.setOption({ tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } }, grid: { containLabel: true }, xAxis: { type: 'value', name: 'Avg Score' }, yAxis: { type: 'category', data: genres, name: 'Genre' }, series: [{ type: 'bar', data: genreScores, itemStyle: { color: '#28a745' } }] });
+
+        // Developers
+        const devs = Object.keys(data.developer_scores);
+        const devScores = Object.values(data.developer_scores);
+        disposeChart(charts.dev);
+        charts.dev = echarts.init(document.getElementById('devChart'));
+        charts.dev.setOption({ tooltip: { trigger: 'axis' }, xAxis: { type: 'category', data: devs, axisLabel: { rotate: 45 } }, yAxis: { type: 'value', name: 'Avg Score' }, series: [{ type: 'bar', data: devScores, itemStyle: { color: '#fd7e14' } }] });
+
+        // Score distribution
+        const distLabels = Object.keys(data.score_distribution);
+        const distCounts = Object.values(data.score_distribution);
+        disposeChart(charts.dist);
+        charts.dist = echarts.init(document.getElementById('distChart'));
+        charts.dist.setOption({ tooltip: { trigger: 'axis' }, xAxis: { type: 'category', data: distLabels, name: 'Score Range' }, yAxis: { type: 'value', name: 'Number of Games' }, series: [{ type: 'bar', data: distCounts, itemStyle: { color: '#6c5ce7' } }] });
+
+        // Platforms
+        const platforms = Object.keys(data.platform_scores);
+        const platformScores = Object.values(data.platform_scores);
+        disposeChart(charts.platform);
+        charts.platform = echarts.init(document.getElementById('platformChart'));
+        charts.platform.setOption({ tooltip: { trigger: 'axis' }, xAxis: { type: 'category', data: platforms, axisLabel: { rotate: 45 } }, yAxis: { type: 'value', name: 'Avg Score' }, series: [{ type: 'bar', data: platformScores, itemStyle: { color: '#e84393' } }] });
+
+        // Series
+        const seriesNames = Object.keys(data.series_scores);
+        const seriesScores = Object.values(data.series_scores);
+        disposeChart(charts.series);
+        charts.series = echarts.init(document.getElementById('seriesChart'));
+        charts.series.setOption({ tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } }, grid: { containLabel: true }, xAxis: { type: 'value', name: 'Avg Score' }, yAxis: { type: 'category', data: seriesNames, name: 'Series' }, series: [{ type: 'bar', data: seriesScores, itemStyle: { color: '#00b894' } }] });
+    }
+
+    function populateFilters(data) {
+        const devSelect = document.getElementById('devFilter');
+        const genreSelect = document.getElementById('genreFilter');
+        devSelect.innerHTML = '<option value="">All Developers</option>';
+        genreSelect.innerHTML = '<option value="">All Genres</option>';
+        for (let dev in data.developer_scores) { let opt = document.createElement('option'); opt.value = dev; opt.text = dev; devSelect.appendChild(opt); }
+        for (let genre in data.genre_scores) { let opt = document.createElement('option'); opt.value = genre; opt.text = genre; genreSelect.appendChild(opt); }
+    }
+
+    function renderDeveloperTable(data) {
+        let tbody = document.querySelector('#devTable tbody');
+        tbody.innerHTML = '';
+        for (let [dev, score] of Object.entries(data.developer_scores)) {
+            let count = data.developer_counts[dev] || '?';
+            tbody.innerHTML += `<tr><td>${dev}</td><td>${score}</td><td>${count}</td></tr>`;
+        }
+        $('#devTable').DataTable({ paging: true, searching: true, order: [[1, 'desc']], destroy: true });
+    }
+
+    async function renderGamesTable(developer = '', genre = '', minScore = 0) {
+        let url = `/games?limit=100&min_score=${minScore}`;
+        if (developer) url += `&developer=${encodeURIComponent(developer)}`;
+        if (genre) url += `&genre=${encodeURIComponent(genre)}`;
+        const res = await fetch(url);
+        const games = await res.json();
+        let tbody = document.querySelector('#gamesTable tbody');
+        tbody.innerHTML = '';
+        for (let g of games) {
+            tbody.innerHTML += `<tr><td>${g.title}</td><td>${g.score}</td><td>${g.genre}</td><td>${g.platform}</td><td>${g.developer}</td></tr>`;
+        }
+        $('#gamesTable').DataTable({ paging: true, searching: true, order: [[1, 'desc']], destroy: true });
+    }
+
+    function updateStatsCards(data) {
+        let total = 0; for (let cnt of Object.values(data.developer_counts)) total += cnt;
+        document.getElementById('totalGames').innerText = total || '0';
+        const avg = Object.values(data.developer_scores).reduce((a,b)=>a+b,0) / (Object.keys(data.developer_scores).length || 1);
+        document.getElementById('avgScore').innerText = avg.toFixed(1);
+        document.getElementById('totalDevs').innerText = Object.keys(data.developer_scores).length;
+        const years = Object.keys(data.yearly_scores);
+        if (years.length) { const minYear = Math.min(...years); const maxYear = Math.max(...years); document.getElementById('yearRange').innerHTML = `${minYear}–${maxYear}`; }
+        else document.getElementById('yearRange').innerHTML = 'N/A';
+    }
+
+    document.getElementById('applyFilters').addEventListener('click', async () => {
+        const developer = document.getElementById('devFilter').value;
+        const genre = document.getElementById('genreFilter').value;
+        const minScore = document.getElementById('scoreSlider').value;
+        let statsUrl = `/analytics/stats?min_score=${minScore}`;
+        if (developer) statsUrl += `&developer=${encodeURIComponent(developer)}`;
+        if (genre) statsUrl += `&genre=${encodeURIComponent(genre)}`;
+        const statsRes = await fetch(statsUrl);
+        const filteredData = await statsRes.json();
+        renderAllCharts(filteredData);
+        renderDeveloperTable(filteredData);
+        updateStatsCards(filteredData);
+        await renderGamesTable(developer, genre, minScore);
+    });
+
+    document.getElementById('resetFilters').addEventListener('click', () => {
+        document.getElementById('devFilter').value = '';
+        document.getElementById('genreFilter').value = '';
+        document.getElementById('scoreSlider').value = 0;
+        document.getElementById('scoreValue').innerText = '≥ 0';
+        loadStats();
+    });
+
+    document.getElementById('scoreSlider').addEventListener('input', (e) => {
+        document.getElementById('scoreValue').innerText = `≥ ${e.target.value}`;
+    });
+
+    window.predictLive = async function() {
+        const genre = document.getElementById('predGenre').value;
+        const platform = document.getElementById('predPlatform').value;
+        const developer = document.getElementById('predDeveloper').value || 'Unknown';
+        const title = document.getElementById('predTitle').value || 'Custom game';
+        const payload = { reviews: 0, percent_recommended: 0, genre, platform, developer, publisher: 'Unknown' };
+        const res = await fetch('/predict', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const json = await res.json();
+        const prediction = json.predicted_score;
+        document.getElementById('livePrediction').innerHTML = `<div class="alert alert-light mt-2 mb-0"><strong>${title}</strong> predicted score: <span class="badge bg-success px-3 py-2 rounded-pill">${prediction}</span></div>`;
+    };
+
+    loadStats();
+</script>
+</body>
+</html>
