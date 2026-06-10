@@ -2,4 +2,3 @@ numpy
 pandas
 requests
 scikit-learn
-uvicorn
