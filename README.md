@@ -1,23 +1,34 @@
 ---
 title: GameScore AI
-colorFrom: blue
-colorTo: purple
 sdk: docker
 pinned: false
 ---
 
-# OpenCritic ML App
+# GameScore AI
 
-Python application that:
+GameScore AI is a comprehensive gaming intelligence platform that:
 
-- ingests OpenCritic game data incrementally,
-- trains a machine learning model to predict OpenCritic scores,
-- gathers gaming news and builds short summaries,
-- recommends similar games to users.
+- Ingests game data from OpenCritic, RAWG, and other sources.
+- Trains a machine learning model to predict critic scores for upcoming games.
+- Gathers gaming news and builds short summaries.
+- Recommends similar games to users.
+- Provides detailed game and developer profiles with analytics.
 
 ## Setup
 
+### Prerequisites
+
+- Python 3.10+
+- Git LFS (for large data files)
+- OpenCritic API key (RapidAPI) for data refresh
+
+### Installation
+
+Clone the repository and install dependencies:
+
 ```bash
+git clone https://github.com/Rhimeth/opencritic-app
+cd opencritic-app
 python -m venv .venv
-.venv\Scripts\activate
+source .venv/bin/activate      # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
