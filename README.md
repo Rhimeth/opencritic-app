@@ -1,9 +1,3 @@
----
-title: GameScore AI
-sdk: docker
-pinned: false
----
-
 # GameScore AI
 
 GameScore AI is a comprehensive gaming intelligence platform that:
